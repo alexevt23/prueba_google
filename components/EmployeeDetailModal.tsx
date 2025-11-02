@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CalculatedEmployee, CalculatedProject, ProjectType } from '../types';
+import { CalculatedEmployee, CalculatedProject, ProjectType, HistoricalData } from '../types';
 import { XIcon, ChartBarIcon, ChevronDownIcon } from './Icons';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, ReferenceLine, Cell } from 'recharts';
 
 interface EmployeeDetailModalProps {
   employee: CalculatedEmployee;
@@ -9,6 +9,54 @@ interface EmployeeDetailModalProps {
   onClose: () => void;
   onUpdateProjectHours: (employeeId: string, projectId:string, newAssignedHours: number) => void;
 }
+
+// Helper function to calculate balance and determine color
+const getBalanceData = (historicalData: HistoricalData[]) => {
+    return historicalData.map(d => {
+      const balance = d.consumedHours - d.assignedHours;
+      let color = '';
+      let status = '';
+      let description = '';
+  
+      if (balance > 5) { 
+        color = '#EF4444'; 
+        status = 'Horas Adicionales'; 
+        description = 'Se consumieron más horas de las asignadas (superó el objetivo).';
+      } // Red-500
+      else if (balance >= -5) { 
+        color = '#34D399'; 
+        status = 'Meta Cumplida'; 
+        description = 'Las horas consumidas están muy cerca de las asignadas (cumplió el objetivo).';
+      } // Green-400
+      else { 
+        color = '#60A5FA'; 
+        status = 'Horas Pendientes'; 
+        description = 'Se consumieron menos horas de las asignadas (quedaron horas pendientes).';
+      } // Blue-400
+  
+      return { ...d, balance, color, status, description };
+    });
+  };
+
+  // Custom Tooltip for the balance chart
+  const CustomBalanceTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload; // Get the full data object for the month
+      return (
+        <div className="bg-surface border border-border rounded-lg p-3 text-sm shadow-md">
+          <p className="font-semibold text-text-primary">{label}</p>
+          <p className="text-text-secondary mt-1">Estado: {data.status}</p>
+          <p className="text-text-secondary">{data.description}</p>
+          <p className={`font-mono ${data.balance > 0 ? 'text-red-500' : (data.balance < 0 ? 'text-blue-500' : 'text-green-500')}`}>
+              Balance: {data.balance > 0 ? '+' : ''}{data.balance}h
+          </p>
+          <p className="text-text-secondary">Asignadas: {data.assignedHours}h</p>
+          <p className="text-text-secondary">Consumidas: {data.consumedHours}h</p>
+        </div>
+      );
+    }
+    return null;
+  };
 
 const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, projects, onClose, onUpdateProjectHours }) => {
   const [editedHours, setEditedHours] = useState<Record<string, string>>({});
@@ -47,6 +95,8 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
       setEditedHours(prev => ({...prev, [projectId]: String(originalHours)}));
     }
   };
+
+  const chartDataWithBalance = getBalanceData(employee.historicalData);
 
   return (
     <div 
@@ -157,20 +207,30 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
                 <div>
                     <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
                         <ChartBarIcon className="w-5 h-5 text-primary" />
-                        Historial Mensual
+                        Historial Mensual de Balance
                     </h3>
                     <div className="h-[300px] border-t border-border pt-4">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={employee.historicalData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                            <BarChart data={chartDataWithBalance} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                 <XAxis dataKey="month" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
                                 <YAxis tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
-                                <Tooltip cursor={{fill: 'rgba(100, 116, 139, 0.05)'}} contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }} />
-                                <Legend wrapperStyle={{fontSize: "14px", paddingTop: '10px'}} />
-                                <Bar dataKey="assignedHours" name="Asignadas" fill="#4338CA" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="consumedHours" name="Consumidas" fill="#A5B4FC" radius={[4, 4, 0, 0]} />
+                                <Tooltip cursor={{fill: 'rgba(100, 116, 139, 0.05)'}} content={CustomBalanceTooltip} />
+                                <ReferenceLine y={0} stroke="#64748B" strokeDasharray="3 3" />
+                                <Bar dataKey="balance" name="Balance de Horas">
+                                    {
+                                        chartDataWithBalance.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))
+                                    }
+                                </Bar>
                             </BarChart>
                         </ResponsiveContainer>
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-secondary mt-4 justify-center">
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500"></span> Horas Adicionales</div>
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400"></span> Meta Cumplida</div>
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400"></span> Horas Pendientes</div>
+                        </div>
                     </div>
                 </div>
             </div>

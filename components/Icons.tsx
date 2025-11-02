@@ -97,3 +97,38 @@ export const SearchIcon = (props: React.SVGProps<SVGSVGElement>) => (
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
 );
+
+export const SortAscIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="m11 17 3-3-3-3" />
+    <path d="M14 14H3" />
+    <path d="M7 6V3" />
+    <path d="M7 21v-3" />
+    <path d="M17 6V3" />
+    <path d="M17 21v-3" />
+    <path d="M21 17h-7" />
+    <path d="M21 7h-7" />
+  </svg>
+);
+
+export const SortDescIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="m11 7 3 3-3 3" />
+    <path d="M14 10H3" />
+    <path d="M7 6V3" />
+    <path d="M7 21v-3" />
+    <path d="M17 6V3" />
+    <path d="M17 21v-3" />
+    <path d="M21 17h-7" />
+    <path d="M21 7h-7" />
+  </svg>
+);
+
+export const SortIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="m3 14 4 4 4-4" />
+    <path d="M7 18V6" />
+    <path d="m21 10-4-4-4 4" />
+    <path d="M17 6v12" />
+  </svg>
+);
