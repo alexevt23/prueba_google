@@ -1,0 +1,5 @@
+{
+  "name": "Employee & Project Dashboard",
+  "description": "A dashboard to monitor employee workload, project progress, and resource allocation.",
+  "requestFramePermissions": []
+}
