@@ -7,6 +7,19 @@ interface EmployeePerformanceProps {
   onSelectEmployee: (employee: EmployeePerformanceData) => void;
 }
 
+// Helper to format minutes into h:mm string
+function formatMinutesToHM(minutes: number): string {
+  if (isNaN(minutes) || minutes === null) {
+    return '0:00';
+  }
+  const isNegative = minutes < 0;
+  const absMinutes = Math.abs(minutes);
+  const h = Math.floor(absMinutes / 60);
+  const m = Math.round(absMinutes % 60);
+  const mFormatted = m < 10 ? `0${m}` : m;
+  return `${isNegative ? '-' : ''}${h}:${mFormatted}`;
+}
+
 type SortColumn = 'name' | 'overallCompletionRate' | 'occupancyRate' | null;
 type SortDirection = 'asc' | 'desc' | null;
 
@@ -38,8 +51,8 @@ const OccupancyProgressBar: React.FC<{ value: number }> = ({ value }) => {
 
 const HistoricalHeatmap: React.FC<{ data: HistoricalData[] }> = ({ data }) => {
     const getColorForBalance = (balance: number): string => {
-        if (balance > 5) return 'bg-red-500';
-        if (balance >= -5) return 'bg-green-500';
+        if (balance > 5 * 60) return 'bg-red-500';
+        if (balance >= -5 * 60) return 'bg-green-500';
         return 'bg-blue-500';
     };
     return (
@@ -63,7 +76,7 @@ const EmployeePerformanceRow: React.FC<{
     >
       <div className="col-span-3">
         <p className="font-semibold text-text-primary font-montserrat">{employee.name}</p>
-        <p className="text-xs text-text-secondary font-open-sans">{employee.totalConsumedHours}h / {employee.totalAssignedHours}h consumidas</p>
+        <p className="text-xs text-text-secondary font-open-sans">{formatMinutesToHM(employee.totalConsumedHours)} / {formatMinutesToHM(employee.totalAssignedHours)} consumidas</p>
       </div>
       <div className="col-span-3 flex items-center gap-3">
         <CompletionProgressBar value={employee.overallCompletionRate} />
@@ -136,7 +149,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ data, onSelec
         <div className="col-span-2 text-center">Historial (6m)</div>
         <div className="col-span-1 text-right">Acciones</div>
       </div>
-      <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+      <div className="pr-2">
         {sortedData.map(employee => (
           <EmployeePerformanceRow 
               key={employee.id} 

@@ -4,6 +4,40 @@ import { XIcon, EditIcon, TrashIcon, BriefcaseIcon } from './Icons';
 import { gsap } from 'gsap';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
+// Helper to format minutes into h:mm string
+function formatMinutesToHM(minutes: number): string {
+  if (isNaN(minutes) || minutes === null) {
+    return '0:00';
+  }
+  const isNegative = minutes < 0;
+  const absMinutes = Math.abs(minutes);
+  const h = Math.floor(absMinutes / 60);
+  const m = Math.round(absMinutes % 60);
+  const mFormatted = m < 10 ? `0${m}` : m;
+  return `${isNegative ? '-' : ''}${h}:${mFormatted}`;
+}
+
+// Helper to format h:mm string into minutes
+function hmToMinutes(time: string): number {
+  if (!time || typeof time !== 'string' || !time.includes(':')) {
+    return 0;
+  }
+  const isNegative = time.startsWith('-');
+  const absTime = isNegative ? time.substring(1) : time;
+  const parts = absTime.split(':');
+  if (parts.length !== 2) return 0;
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+
+  if (isNaN(hours) || isNaN(minutes)) {
+    return 0;
+  }
+  const totalMinutes = (hours * 60) + minutes;
+  return isNegative ? -totalMinutes : totalMinutes;
+}
+
+
 interface EmployeeDetailModalProps {
   employee: CalculatedEmployee;
   projects: CalculatedProject[];
@@ -16,11 +50,26 @@ interface EmployeeDetailModalProps {
 const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, projects, onClose, onUpdateProjectHours, onEditEmployee, onDeleteEmployee }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [editingHours, setEditingHours] = useState<{ [projectId: string]: string }>({});
 
   useEffect(() => {
     gsap.fromTo(modalRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'power2.out' });
     gsap.fromTo(contentRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: 'power2.out', delay: 0.1 });
-  }, []);
+    
+    // Initialize editing state with formatted hours
+    const initialHours: { [projectId: string]: string } = {};
+    employee.projects.forEach(p => {
+        const projectDetails = projects.find(proj => proj.id === p.projectId);
+        if(projectDetails) {
+            const empProjectData = employee.projects.find(ep => ep.projectId === p.projectId);
+            if(empProjectData) {
+                initialHours[p.projectId] = formatMinutesToHM(empProjectData.assignedHours);
+            }
+        }
+    });
+    setEditingHours(initialHours);
+
+  }, [employee, projects]);
 
   const handleClose = () => {
     gsap.to(contentRef.current, { y: 20, opacity: 0, duration: 0.2, ease: 'power2.in' });
@@ -32,22 +81,17 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
     return { ...ep, ...projectDetails };
   });
 
-  const [editingHours, setEditingHours] = useState<{ [projectId: string]: string }>({});
-
   const handleHoursChange = (projectId: string, value: string) => {
-    setEditingHours(prev => ({ ...prev, [projectId]: value }));
+    const sanitizedValue = value.replace(/[^0-9:]/g, '');
+    setEditingHours(prev => ({ ...prev, [projectId]: sanitizedValue }));
   };
 
   const handleHoursSave = (projectId: string) => {
-    const newHours = parseInt(editingHours[projectId], 10);
-    if (!isNaN(newHours)) {
-      onUpdateProjectHours(employee.id, projectId, newHours);
-      setEditingHours(prev => {
-        const newState = { ...prev };
-        delete newState[projectId];
-        return newState;
-      });
-    }
+    const newHoursString = editingHours[projectId];
+    if (newHoursString === undefined) return;
+
+    const newMinutes = hmToMinutes(newHoursString);
+    onUpdateProjectHours(employee.id, projectId, newMinutes);
   };
   
   const chartData = employee.historicalData.map(d => ({
@@ -56,9 +100,9 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
   }));
 
   const getBarColor = (value: number) => {
-      if (value > 5) return '#3B82F6'; // Superado (Azul)
-      if (value >= -5) return '#22C55E'; // Meta Cumplida (Verde)
-      return '#F97316'; // Horas Pendientes (Naranja)
+      if (value > 5 * 60) return '#3B82F6'; // Superado
+      if (value >= -5 * 60) return '#22C55E'; // Meta Cumplida
+      return '#F97316'; // Horas Pendientes
   };
 
   const totalAssignedHoursCurrentMonth = employee.recurringHours + employee.oneTimeHours;
@@ -78,14 +122,11 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
         aria-labelledby="employee-modal-title"
       >
         <header className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <img src={employee.avatar} alt={employee.name} className="w-14 h-14 rounded-full" />
-            <div>
-              <h2 id="employee-modal-title" className="text-2xl font-montserrat font-bold text-text-primary">
-                {employee.name}
-              </h2>
-              <p className="text-text-secondary font-open-sans">{employee.role}</p>
-            </div>
+          <div>
+            <h2 id="employee-modal-title" className="text-2xl font-montserrat font-bold text-text-primary">
+              {employee.name}
+            </h2>
+            <p className="text-text-secondary font-open-sans">{employee.role}</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => onEditEmployee(employee)} className="p-2 rounded-full hover:bg-background transition-colors" aria-label="Editar empleado">
@@ -109,11 +150,11 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
                     </div>
                     <div className="bg-background p-4 rounded-xl border border-border text-center">
                         <h4 className="text-sm font-montserrat font-semibold text-text-secondary">Horas Asignadas</h4>
-                        <p className="text-3xl font-montserrat font-bold text-text-primary mt-1">{totalAssignedHoursCurrentMonth}h<span className="text-lg text-text-secondary">/{employee.totalHoursMonth}h</span></p>
+                        <p className="text-3xl font-montserrat font-bold text-text-primary mt-1">{formatMinutesToHM(totalAssignedHoursCurrentMonth)}<span className="text-lg text-text-secondary">/{formatMinutesToHM(employee.totalHoursMonth)}</span></p>
                     </div>
                     <div className="bg-background p-4 rounded-xl border border-border text-center">
                         <h4 className="text-sm font-montserrat font-semibold text-text-secondary">Balance Mensual</h4>
-                        <p className={`text-3xl font-montserrat font-bold mt-1 ${employee.balanceHours < 0 ? 'text-red-500' : 'text-green-600'}`}>{employee.balanceHours}h</p>
+                        <p className={`text-3xl font-montserrat font-bold mt-1 ${employee.balanceHours < 0 ? 'text-red-500' : 'text-green-600'}`}>{formatMinutesToHM(employee.balanceHours)}</p>
                     </div>
                 </div>
                 <div>
@@ -121,17 +162,17 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
                         <BriefcaseIcon className="w-5 h-5" />
                         Proyectos Asignados
                     </h3>
-                    <div className="space-y-3 max-h-[calc(95vh-450px)] overflow-y-auto pr-2">
-                        {employeeProjects.map(p => p && (
+                    <div className="space-y-3 pr-2">
+                        {employeeProjects.map(p => p.id && (
                         <div key={p.id} className="bg-background p-3 rounded-lg border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div>
                                 <p className="font-montserrat font-semibold text-text-primary">{p.name}</p>
-                                <p className="text-sm text-text-secondary font-open-sans">{p.consumedHours}h / {p.assignedHours}h consumidas</p>
+                                <p className="text-sm text-text-secondary font-open-sans">{formatMinutesToHM(p.consumedHours)} / {formatMinutesToHM(p.assignedHours)} consumidas</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <label htmlFor={`hours-${p.id}`} className="text-sm font-medium text-text-secondary sr-only">Asignar:</label>
-                                <input id={`hours-${p.id}`} type="number" value={editingHours[p.id] ?? p.assignedHours} onChange={(e) => handleHoursChange(p.id, e.target.value)} className="w-20 px-2 py-1 border border-border rounded-md text-center focus:ring-1 focus:ring-primary focus:border-primary" />
-                                <button onClick={() => handleHoursSave(p.id)} className="px-3 py-1 text-sm rounded-md bg-primary text-white hover:bg-primary-dark transition-colors" disabled={editingHours[p.id] === undefined}>Guardar</button>
+                                <input id={`hours-${p.id}`} type="text" value={editingHours[p.id] || ''} onChange={(e) => handleHoursChange(p.id, e.target.value)} className="w-20 px-2 py-1 border border-border rounded-md text-center focus:ring-1 focus:ring-primary focus:border-primary" />
+                                <button onClick={() => handleHoursSave(p.id)} className="px-3 py-1 text-sm rounded-md bg-primary text-white hover:bg-primary-dark transition-colors" disabled={editingHours[p.id] === formatMinutesToHM(p.assignedHours)}>Guardar</button>
                             </div>
                         </div>
                         ))}
@@ -144,7 +185,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 20 }}>
                             <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#737373' }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fontSize: 12, fill: '#737373' }} axisLine={false} tickLine={false} allowDecimals={false} unit="h" />
+                            <YAxis tick={{ fontSize: 12, fill: '#737373' }} axisLine={false} tickLine={false} allowDecimals={false} unit="h" tickFormatter={(value) => `${Math.round(value/60)}`} />
                             <Tooltip
                                 cursor={{ fill: 'rgba(229, 229, 229, 0.2)' }}
                                 contentStyle={{
@@ -154,6 +195,7 @@ const EmployeeDetailModal: React.FC<EmployeeDetailModalProps> = ({ employee, pro
                                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
                                     fontFamily: "'Open Sans', sans-serif"
                                 }}
+                                formatter={(value: number) => [formatMinutesToHM(value), "Balance"]}
                              />
                             <Legend verticalAlign="bottom" height={36} iconSize={10} formatter={(value, entry) => <span className="text-text-secondary text-xs">{value}</span>} />
                             <Bar dataKey="Balance" name="Balance de Horas">

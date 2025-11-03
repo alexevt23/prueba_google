@@ -22,18 +22,21 @@ export interface Task {
     name: string;
     status: TaskStatus;
     assignedTo: string; // Employee ID
+    assignedHours: number; // in minutes
+    consumedHours: number; // in minutes
 }
 
 export interface HistoricalData {
     month: string;
-    assignedHours: number;
-    consumedHours: number;
+    assignedHours: number; // in minutes
+    consumedHours: number; // in minutes
+    goalCompletionRate: number;
 }
 
 export interface EmployeeProject {
   projectId: string;
-  assignedHours: number;
-  consumedHours: number;
+  assignedHours: number; // in minutes
+  consumedHours: number; // in minutes
 }
 
 export interface Employee {
@@ -41,10 +44,10 @@ export interface Employee {
   name: string;
   avatar?: string; // Explicitly made optional
   role?: string;    // Explicitly made optional
-  totalHoursMonth: number; // Explicitly required now
+  totalHoursMonth: number; // in minutes
   projects: EmployeeProject[];
   historicalData: HistoricalData[];
-  lastWeekHours: number[];
+  lastWeekHours: number[]; // in minutes
 }
 
 export interface Project {
@@ -62,29 +65,30 @@ export interface Project {
 // Removed NewEmployeeData, NewProjectData, NewTaskData as add functionality is removed.
 
 export interface CalculatedEmployee extends Employee {
-  recurringHours: number;
-  oneTimeHours: number;
-  balanceHours: number;
+  recurringHours: number; // in minutes
+  oneTimeHours: number; // in minutes
+  balanceHours: number; // in minutes
   occupancyRate: number;
   hasLoggedHoursThisWeek: boolean;
-  lastWeekDailyAverage: number;
+  lastWeekDailyAverage: number; // in minutes
 }
 
 export interface CalculatedProject extends Project {
   team: CalculatedEmployee[];
-  totalAssignedHours: number;
-  totalConsumedHours: number;
+  totalAssignedHours: number; // in minutes
+  totalConsumedHours: number; // in minutes
   progress: number;
   hasActivityThisWeek: boolean;
+}
+
+// Fix: Add missing EmployeePerformanceData interface to resolve compilation error.
+export interface EmployeePerformanceData extends CalculatedEmployee {
+    totalConsumedHours: number;
+    totalAssignedHours: number;
+    overallCompletionRate: number;
 }
 
 export interface DashboardData {
     employees: CalculatedEmployee[];
     projects: CalculatedProject[];
-}
-
-export interface EmployeePerformanceData extends CalculatedEmployee {
-    overallCompletionRate: number;
-    totalAssignedHours: number;
-    totalConsumedHours: number;
 }

@@ -8,6 +8,19 @@ interface EmployeeAvailabilityProps {
   onSendSlackMessage: (employeeName: string) => void;
 }
 
+// Helper to format minutes into h:mm string
+function formatMinutesToHM(minutes: number): string {
+  if (isNaN(minutes) || minutes === null) {
+    return '0:00';
+  }
+  const isNegative = minutes < 0;
+  const absMinutes = Math.abs(minutes);
+  const h = Math.floor(absMinutes / 60);
+  const m = Math.round(absMinutes % 60);
+  const mFormatted = m < 10 ? `0${m}` : m;
+  return `${isNegative ? '-' : ''}${h}:${mFormatted}`;
+}
+
 type SortColumn = 'name' | 'totalAssignedHours' | 'totalConsumedHours' | 'completionRate' | 'balanceHours' | 'occupancyRate' | null;
 type SortDirection = 'asc' | 'desc' | null;
 
@@ -36,14 +49,14 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => {
 
 const HistoricalHeatmap: React.FC<{ data: HistoricalData[] }> = ({ data }) => {
     const getColorForBalance = (balance: number): string => {
-        if (balance > 5) return 'bg-red-500';
-        if (balance >= -5) return 'bg-green-500';
-        return 'bg-blue-500';
+        if (balance > 5 * 60) return 'bg-red-500'; // Over 5 hours
+        if (balance >= -5 * 60) return 'bg-green-500'; // Within +/- 5 hours
+        return 'bg-blue-500'; // Under 5 hours
     };
 
     const getStatusText = (balance: number): string => {
-        if (balance > 5) return 'Horas Adicionales';
-        if (balance >= -5) return 'Meta Cumplida';
+        if (balance > 5 * 60) return 'Horas Adicionales';
+        if (balance >= -5 * 60) return 'Meta Cumplida';
         return 'Horas Pendientes';
     };
 
@@ -52,7 +65,7 @@ const HistoricalHeatmap: React.FC<{ data: HistoricalData[] }> = ({ data }) => {
             {data.map((monthData, index) => {
                 const balance = monthData.consumedHours - monthData.assignedHours;
                 const statusText = getStatusText(balance);
-                const tooltipText = `${monthData.month}\nEstado: ${statusText}\nBalance: ${balance > 0 ? '+' : ''}${balance}h\nAsignadas: ${monthData.assignedHours}h\nConsumidas: ${monthData.consumedHours}h`;
+                const tooltipText = `${monthData.month}\nEstado: ${statusText}\nBalance: ${formatMinutesToHM(balance)}\nAsignadas: ${formatMinutesToHM(monthData.assignedHours)}\nConsumidas: ${formatMinutesToHM(monthData.consumedHours)}`;
                 return (
                     <div 
                         key={index}
@@ -93,14 +106,14 @@ const EmployeeRow: React.FC<{
             <SlackIcon className="w-5 h-5" />
         </button>
       </div>
-      <div className="col-span-1 text-center font-open-sans text-sm">{totalAssignedHours}h</div>
-      <div className="col-span-1 text-center font-open-sans text-sm">{totalConsumedHours}h</div>
+      <div className="col-span-1 text-center font-open-sans text-sm">{formatMinutesToHM(totalAssignedHours)}</div>
+      <div className="col-span-1 text-center font-open-sans text-sm">{formatMinutesToHM(totalConsumedHours)}</div>
       <div className="col-span-2 flex items-center gap-2">
         <ProgressBar value={completionRate} />
         <span className="font-open-sans text-sm w-10 text-right">{completionRate}%</span>
       </div>
        <div className="col-span-1 text-center">
-         <p className={`font-open-sans text-sm font-medium ${employee.balanceHours < 0 ? 'text-red-600' : 'text-green-600'}`}>{employee.balanceHours}h</p>
+         <p className={`font-open-sans text-sm font-medium ${employee.balanceHours < 0 ? 'text-red-600' : 'text-green-600'}`}>{formatMinutesToHM(employee.balanceHours)}</p>
       </div>
       <div className="col-span-2 flex items-center gap-2">
         <ProgressBar value={employee.occupancyRate} />
@@ -185,7 +198,7 @@ const EmployeeAvailability: React.FC<EmployeeAvailabilityProps> = ({ employees, 
           </div>
         </div>
       </div>
-      <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+      <div className="pr-2">
         {sortedEmployees.map(employee => (
           <EmployeeRow 
               key={employee.id} 

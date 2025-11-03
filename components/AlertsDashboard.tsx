@@ -2,6 +2,19 @@ import React from 'react';
 import { CalculatedEmployee, CalculatedProject, ProjectType } from '../types';
 import { UsersIcon, BriefcaseIcon, TrendingUpIcon, TrendingDownIcon } from './Icons';
 
+// Helper to format minutes into h:mm string
+function formatMinutesToHM(minutes: number): string {
+  if (isNaN(minutes) || minutes === null) {
+    return '0:00';
+  }
+  const isNegative = minutes < 0;
+  const absMinutes = Math.abs(minutes);
+  const h = Math.floor(absMinutes / 60);
+  const m = Math.round(absMinutes % 60);
+  const mFormatted = m < 10 ? `0${m}` : m;
+  return `${isNegative ? '-' : ''}${h}:${mFormatted}`;
+}
+
 interface AlertsDashboardProps {
     employeesWithoutHours: CalculatedEmployee[];
     projectsWithoutActivity: CalculatedProject[];
@@ -35,7 +48,7 @@ const WorkloadAlertCard: React.FC<{ employee: CalculatedEmployee; type: 'over' |
                 <p className="font-montserrat font-semibold text-text-primary text-sm">{employee.name}</p>
             </div>
             <div className="text-right">
-                <p className={`font-open-sans font-bold text-base font-montserrat ${isOver ? 'text-red-500' : 'text-yellow-500'}`}>{employee.lastWeekDailyAverage.toFixed(1)}h</p> {/* font-mono removed */}
+                <p className={`font-open-sans font-bold text-base font-montserrat ${isOver ? 'text-red-500' : 'text-yellow-500'}`}>{formatMinutesToHM(employee.lastWeekDailyAverage)}</p>
                 <p className="text-xs text-text-secondary font-open-sans">prom./día</p>
             </div>
         </div>
@@ -88,7 +101,7 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
                             <Icon className="w-6 h-6 text-text-secondary" />
                             {title}
                         </h3>
-                        <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2">
+                        <div className="space-y-3 pr-2">
                             {items.map(render)}
                         </div>
                     </div>
@@ -99,7 +112,7 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
                            <Icon className="w-6 h-6 text-text-secondary" />
                            <span className="text-base">{title}</span>
                         </h3>
-                        <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2">
+                        <div className="space-y-3 pr-2">
                             {items.map(render)}
                         </div>
                     </div>
