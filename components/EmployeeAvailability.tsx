@@ -1,37 +1,44 @@
 import React, { useState } from 'react';
-import { CalculatedEmployee, CalculatedProject, HistoricalData } from '../types';
-import { EyeIcon, SortAscIcon, SortDescIcon, SortIcon } from './Icons';
-import EmployeeDetailModal from './EmployeeDetailModal';
+import { CalculatedEmployee, HistoricalData } from '../types';
+import { SortAscIcon, SortDescIcon, SortIcon, SlackIcon } from './Icons';
 
 interface EmployeeAvailabilityProps {
   employees: CalculatedEmployee[];
-  projects: CalculatedProject[];
-  onUpdateEmployeeProjectHours: (employeeId: string, projectId: string, newAssignedHours: number) => void;
+  onSelectEmployee: (employee: CalculatedEmployee) => void;
+  onSendSlackMessage: (employeeName: string) => void;
 }
 
-type SortColumn = 'name' | 'assignedHoursTotal' | 'balanceHours' | 'occupancyRate' | null;
+type SortColumn = 'name' | 'totalAssignedHours' | 'totalConsumedHours' | 'completionRate' | 'balanceHours' | 'occupancyRate' | null;
 type SortDirection = 'asc' | 'desc' | null;
 
 const ProgressBar: React.FC<{ value: number }> = ({ value }) => {
-  const getColor = () => {
-    if (value > 90) return 'bg-red-500';
-    if (value > 75) return 'bg-yellow-500';
-    return 'bg-green-500';
+  const getProgressColor = (val: number, type: 'occupancy' | 'completion') => {
+    if (type === 'occupancy') {
+        if (val > 90) return 'bg-red-500';
+        if (val > 75) return 'bg-yellow-500';
+        return 'bg-green-500';
+    } else { // completion
+        if (val < 70) return 'bg-red-500';
+        if (val < 90) return 'bg-yellow-500';
+        return 'bg-green-500';
+    }
   };
+  
+  const color = getProgressColor(value, 'occupancy');
 
   return (
-    <div className="w-full bg-slate-200 rounded-full h-2">
-      <div className={`${getColor()} h-2 rounded-full`} style={{ width: `${value}%` }}></div>
+    <div className="w-full bg-neutral-200 rounded-full h-2 shadow-inner">
+      <div className={`${color} h-2 rounded-full`} style={{ width: `${value}%` }}></div>
     </div>
   );
 };
 
+
 const HistoricalHeatmap: React.FC<{ data: HistoricalData[] }> = ({ data }) => {
-    // balance = consumedHours - assignedHours
     const getColorForBalance = (balance: number): string => {
-        if (balance > 5) return 'bg-red-500';     // Horas Adicionales
-        if (balance >= -5) return 'bg-green-400'; // Meta Cumplida
-        return 'bg-blue-400';                    // Horas Pendientes
+        if (balance > 5) return 'bg-red-500';
+        if (balance >= -5) return 'bg-green-500';
+        return 'bg-blue-500';
     };
 
     const getStatusText = (balance: number): string => {
@@ -49,7 +56,7 @@ const HistoricalHeatmap: React.FC<{ data: HistoricalData[] }> = ({ data }) => {
                 return (
                     <div 
                         key={index}
-                        className={`w-4 h-7 rounded-sm transition-transform hover:scale-110 ${getColorForBalance(balance)}`}
+                        className={`w-4 h-7 rounded-sm shadow-custom-light transition-transform hover:scale-105 ${getColorForBalance(balance)}`}
                         title={tooltipText}
                     ></div>
                 );
@@ -58,57 +65,67 @@ const HistoricalHeatmap: React.FC<{ data: HistoricalData[] }> = ({ data }) => {
     );
 };
 
-const EmployeeRow: React.FC<{ employee: CalculatedEmployee; onSelect: () => void; }> = ({ employee, onSelect }) => {
+const EmployeeRow: React.FC<{ 
+    employee: CalculatedEmployee; 
+    onSelect: (employee: CalculatedEmployee) => void; 
+    onSendSlackMessage: (employeeName: string) => void;
+}> = ({ employee, onSelect, onSendSlackMessage }) => {
+
+  const totalAssignedHours = employee.recurringHours + employee.oneTimeHours;
+  const totalConsumedHours = employee.projects.reduce((sum, p) => sum + p.consumedHours, 0);
+  const completionRate = totalAssignedHours > 0 ? Math.round((totalConsumedHours / totalAssignedHours) * 100) : 0;
+
   return (
-    <div className="grid grid-cols-12 gap-4 items-center p-3 border-b border-border last:border-b-0 hover:bg-background transition-colors">
-      <div className="col-span-3">
-        <p className="font-semibold text-text-primary">{employee.name}</p>
-      </div>
-      <div className="col-span-2 text-center">
-        <p className="font-mono text-sm text-text-primary">{employee.recurringHours}h / {employee.oneTimeHours}h</p>
-        <p className="text-xs text-text-secondary">Rec. / Puntual</p>
-      </div>
-      <div className="col-span-1 text-center">
-         <p className={`font-mono text-sm font-medium ${employee.balanceHours < 0 ? 'text-red-600' : 'text-green-600'}`}>{employee.balanceHours}h</p>
-         <p className="text-xs text-text-secondary">Balance</p>
-      </div>
+    <div 
+        className="grid grid-cols-12 gap-4 items-center p-3 rounded-lg border border-border last:border-b-0 hover:bg-primary-light transition-all duration-200 cursor-pointer shadow-custom-light mb-2"
+        onClick={() => onSelect(employee)}
+        role="button"
+        tabIndex={0}
+        aria-label={`Ver detalles de ${employee.name}`}
+    >
       <div className="col-span-3 flex items-center gap-3">
+        <p className="font-semibold text-text-primary font-montserrat">{employee.name}</p>
+        <button
+            onClick={(e) => { e.stopPropagation(); onSendSlackMessage(employee.name); }}
+            className="p-1 rounded-full text-blue-700 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            aria-label={`Enviar mensaje a ${employee.name} por Slack`}
+        >
+            <SlackIcon className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="col-span-1 text-center font-open-sans text-sm">{totalAssignedHours}h</div>
+      <div className="col-span-1 text-center font-open-sans text-sm">{totalConsumedHours}h</div>
+      <div className="col-span-2 flex items-center gap-2">
+        <ProgressBar value={completionRate} />
+        <span className="font-open-sans text-sm w-10 text-right">{completionRate}%</span>
+      </div>
+       <div className="col-span-1 text-center">
+         <p className={`font-open-sans text-sm font-medium ${employee.balanceHours < 0 ? 'text-red-600' : 'text-green-600'}`}>{employee.balanceHours}h</p>
+      </div>
+      <div className="col-span-2 flex items-center gap-2">
         <ProgressBar value={employee.occupancyRate} />
-        <span className="font-mono text-sm w-12 text-right text-text-primary">{employee.occupancyRate}%</span>
+        <span className="font-open-sans text-sm w-10 text-right">{employee.occupancyRate}%</span>
       </div>
-      <div className="col-span-2">
+      <div className="col-span-2 flex justify-center">
           <HistoricalHeatmap data={employee.historicalData} />
-      </div>
-      <div className="col-span-1 flex justify-end">
-         <button onClick={onSelect} className="p-2 rounded-full hover:bg-slate-200 transition-colors" aria-label={`Ver detalles de ${employee.name}`}>
-            <EyeIcon className="w-5 h-5 text-text-secondary" />
-         </button>
       </div>
     </div>
   );
 };
 
-const EmployeeAvailability: React.FC<EmployeeAvailabilityProps> = ({ employees, projects, onUpdateEmployeeProjectHours }) => {
-  const [selectedEmployee, setSelectedEmployee] = useState<CalculatedEmployee | null>(null);
+const EmployeeAvailability: React.FC<EmployeeAvailabilityProps> = ({ employees, onSelectEmployee, onSendSlackMessage }) => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
-      if (sortDirection === 'asc') {
-        setSortDirection('desc');
-      } else if (sortDirection === 'desc') {
-        setSortColumn(null); // Reset sort
-        setSortDirection(null);
-      } else {
-        setSortDirection('asc');
-      }
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortColumn(column);
       setSortDirection('asc');
     }
   };
-
+  
   const getSortIcon = (column: SortColumn) => {
     if (sortColumn === column) {
       if (sortDirection === 'asc') return <SortAscIcon className="w-4 h-4 text-primary" />;
@@ -118,104 +135,67 @@ const EmployeeAvailability: React.FC<EmployeeAvailabilityProps> = ({ employees, 
   };
 
   const sortedEmployees = React.useMemo(() => {
-    if (!sortColumn || !sortDirection) {
-      return employees;
-    }
+    if (!sortColumn || !sortDirection) return employees;
 
     return [...employees].sort((a, b) => {
-      let valA: any;
-      let valB: any;
+      let valA: any, valB: any;
+      
+      const calcA = {
+        totalAssigned: a.recurringHours + a.oneTimeHours,
+        totalConsumed: a.projects.reduce((sum, p) => sum + p.consumedHours, 0),
+      };
+      const calcB = {
+        totalAssigned: b.recurringHours + b.oneTimeHours,
+        totalConsumed: b.projects.reduce((sum, p) => sum + p.consumedHours, 0),
+      };
 
       switch (sortColumn) {
-        case 'name':
-          valA = a.name;
-          valB = b.name;
-          break;
-        case 'assignedHoursTotal':
-          valA = a.recurringHours + a.oneTimeHours;
-          valB = b.recurringHours + b.oneTimeHours;
-          break;
-        case 'balanceHours':
-          valA = a.balanceHours;
-          valB = b.balanceHours;
-          break;
-        case 'occupancyRate':
-          valA = a.occupancyRate;
-          valB = b.occupancyRate;
-          break;
-        default:
-          return 0;
+        case 'name': valA = a.name; valB = b.name; break;
+        case 'totalAssignedHours': valA = calcA.totalAssigned; valB = calcB.totalAssigned; break;
+        case 'totalConsumedHours': valA = calcA.totalConsumed; valB = calcB.totalConsumed; break;
+        case 'completionRate': 
+            valA = calcA.totalAssigned > 0 ? (calcA.totalConsumed / calcA.totalAssigned) : 0;
+            valB = calcB.totalAssigned > 0 ? (calcB.totalConsumed / calcB.totalAssigned) : 0;
+            break;
+        case 'balanceHours': valA = a.balanceHours; valB = b.balanceHours; break;
+        case 'occupancyRate': valA = a.occupancyRate; valB = b.occupancyRate; break;
+        default: return 0;
       }
-
-      if (typeof valA === 'string' && typeof valB === 'string') {
-        return sortDirection === 'asc'
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
-      }
-      if (typeof valA === 'number' && typeof valB === 'number') {
-        return sortDirection === 'asc' ? valA - valB : valB - valA;
-      }
+      if (typeof valA === 'string') return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      if (typeof valA === 'number') return sortDirection === 'asc' ? valA - valB : valB - valA;
       return 0;
     });
   }, [employees, sortColumn, sortDirection]);
   
   return (
-    <>
-      <div className="space-y-2">
-        <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs text-text-secondary font-semibold uppercase tracking-wider border-b border-border">
-          <button 
-            className="col-span-3 flex items-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('name')}
-          >
-            Empleado {getSortIcon('name')}
-          </button>
-          <button 
-            className="col-span-2 text-center flex items-center justify-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('assignedHoursTotal')}
-          >
-            Horas Asignadas {getSortIcon('assignedHoursTotal')}
-          </button>
-          <button 
-            className="col-span-1 text-center flex items-center justify-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('balanceHours')}
-          >
-            Balance {getSortIcon('balanceHours')}
-          </button>
-          <button 
-            className="col-span-3 flex items-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('occupancyRate')}
-          >
-            Tasa de Ocupación {getSortIcon('occupancyRate')}
-          </button>
-          <div className="col-span-2 text-center">
-            <span className="block">Historial (6m)</span>
-            <div className="flex justify-center items-center gap-1 mt-1.5" aria-label="Leyenda del historial">
-                <div className="w-2 h-2 rounded-full bg-red-500" title="Horas Adicionales"></div>
-                <div className="w-2 h-2 rounded-full bg-green-400" title="Meta Cumplida"></div>
-                <div className="w-2 h-2 rounded-full bg-blue-400" title="Horas Pendientes"></div>
-            </div>
+    <div className="space-y-2">
+      <div className="grid grid-cols-12 gap-4 px-3 py-3 text-xs text-text-secondary font-montserrat font-semibold uppercase tracking-wider border-b-2 border-border mb-4">
+        <button className="col-span-3 flex items-center gap-1 group" onClick={() => handleSort('name')}>Empleado {getSortIcon('name')}</button>
+        <button className="col-span-1 text-center flex items-center justify-center gap-1 group" onClick={() => handleSort('totalAssignedHours')}>Asignadas {getSortIcon('totalAssignedHours')}</button>
+        <button className="col-span-1 text-center flex items-center justify-center gap-1 group" onClick={() => handleSort('totalConsumedHours')}>Consumidas {getSortIcon('totalConsumedHours')}</button>
+        <button className="col-span-2 flex items-center gap-1 group" onClick={() => handleSort('completionRate')}>Finalización Mes {getSortIcon('completionRate')}</button>
+        <button className="col-span-1 text-center flex items-center justify-center gap-1 group" onClick={() => handleSort('balanceHours')}>Balance {getSortIcon('balanceHours')}</button>
+        <button className="col-span-2 flex items-center gap-1 group" onClick={() => handleSort('occupancyRate')}>Ocupación {getSortIcon('occupancyRate')}</button>
+        <div className="col-span-2 text-center">
+          <span className="block">Historial (6m)</span>
+          <div className="flex justify-center items-center gap-1 mt-1.5" aria-label="Leyenda del historial">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" title="Horas Adicionales"></div>
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm" title="Meta Cumplida"></div>
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" title="Horas Pendientes"></div>
           </div>
-          <div className="col-span-1"></div>
-        </div>
-        <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
-            {sortedEmployees.map(employee => (
-            <EmployeeRow 
-                key={employee.id} 
-                employee={employee} 
-                onSelect={() => setSelectedEmployee(employee)}
-            />
-            ))}
         </div>
       </div>
-      {selectedEmployee && (
-        <EmployeeDetailModal
-            employee={selectedEmployee}
-            projects={projects}
-            onClose={() => setSelectedEmployee(null)}
-            onUpdateProjectHours={onUpdateEmployeeProjectHours}
-        />
-      )}
-    </>
+      <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+        {sortedEmployees.map(employee => (
+          <EmployeeRow 
+              key={employee.id} 
+              employee={employee} 
+              onSelect={onSelectEmployee}
+              onSendSlackMessage={onSendSlackMessage}
+          />
+        ))}
+      </div>
+    </div>
   );
 };
 

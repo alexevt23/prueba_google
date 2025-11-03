@@ -1,51 +1,54 @@
 import React, { useState } from 'react';
 import { CalculatedProject, ProjectType } from '../types';
-import ProjectDetailModal from './ProjectDetailModal';
-import { SortAscIcon, SortDescIcon, SortIcon } from './Icons';
+import { SortAscIcon, SortDescIcon, SortIcon, EyeIcon } from './Icons'; 
 
 type SortColumn = 'name' | 'teamSize' | 'totalConsumedHours' | 'progress' | null;
 type SortDirection = 'asc' | 'desc' | null;
 
-const ProjectRow: React.FC<{ project: CalculatedProject, onSelect: () => void }> = ({ project, onSelect }) => {
+interface ProjectOverviewProps {
+  projects: CalculatedProject[];
+  onSelectProject: (project: CalculatedProject) => void;
+}
+
+const ProjectRow: React.FC<{ project: CalculatedProject, onSelect: (project: CalculatedProject) => void }> = ({ project, onSelect }) => {
   return (
-    <div className="grid grid-cols-12 gap-4 items-center p-3 border-b border-border last:border-b-0 hover:bg-background transition-colors cursor-pointer" onClick={onSelect}>
-      <div className="col-span-4 flex flex-col">
-        <p className="font-semibold text-text-primary truncate">{project.name}</p>
-        <span className={`mt-1 text-xs px-2 py-0.5 rounded-full self-start ${project.type === ProjectType.RECURRING ? 'bg-sky-100 text-sky-800' : 'bg-indigo-100 text-indigo-800'}`}>
-          {project.type === ProjectType.RECURRING ? 'Recurrente' : 'Puntual'}
+    <div className="grid grid-cols-12 gap-4 items-center p-3 rounded-lg border border-border last:border-b-0 hover:bg-primary-light transition-colors duration-200 shadow-custom-light mb-2">
+      <div className="col-span-3 flex flex-col items-start">
+        <p className="font-montserrat font-semibold text-text-primary text-base">{project.name}</p>
+        <span className={`mt-1 text-xs px-2 py-0.5 rounded-full self-start inline-block shadow-sm font-open-sans ${project.type === ProjectType.RECURRING ? 'bg-blue-50 text-blue-800' : 'bg-indigo-50 text-indigo-800'}`}>
+            {project.type}
         </span>
       </div>
       <div className="col-span-2 text-center">
-        <p className="font-mono text-sm text-text-primary">{project.team.length} Miembros</p>
+        <p className="font-montserrat text-sm text-text-primary font-semibold">{project.team.length} {project.team.length === 1 ? 'miembro' : 'miembros'}</p>
       </div>
       <div className="col-span-2 text-center">
-        <p className="font-mono text-sm text-text-secondary">{project.totalConsumedHours}h / {project.totalAssignedHours}h</p>
+        <p className="font-open-sans text-sm text-text-primary">{project.totalConsumedHours}h / {project.totalAssignedHours}h</p>
+        <p className="text-xs text-text-secondary font-open-sans">Cons. / Asig.</p>
       </div>
-      <div className="col-span-4 flex items-center gap-3">
-        <div className="w-full bg-slate-200 rounded-full h-1.5">
-          <div className="bg-primary h-1.5 rounded-full" style={{ width: `${project.progress}%` }}></div>
+      <div className="col-span-2 flex items-center gap-3">
+        <div className="w-full bg-neutral-200 rounded-full h-2 shadow-inner">
+          <div className={`bg-primary h-2 rounded-full`} style={{ width: `${project.progress}%` }}></div>
         </div>
-        <span className="font-mono text-sm w-10 text-right text-text-primary">{project.progress}%</span>
+        <span className="font-open-sans text-sm w-12 text-right text-text-primary">{project.progress}%</span>
+      </div>
+      <div className="col-span-3 flex justify-end">
+        <button onClick={() => onSelect(project)} className="p-2 rounded-full hover:bg-neutral-200 transition-colors" aria-label={`Ver detalles de ${project.name}`}>
+          <EyeIcon className="w-5 h-5 text-text-secondary" />
+        </button>
       </div>
     </div>
   );
 };
 
-const ProjectOverview: React.FC<{ projects: CalculatedProject[] }> = ({ projects }) => {
-  const [selectedProject, setSelectedProject] = useState<CalculatedProject | null>(null);
+
+export const ProjectOverview: React.FC<ProjectOverviewProps> = ({ projects, onSelectProject }) => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
-      if (sortDirection === 'asc') {
-        setSortDirection('desc');
-      } else if (sortDirection === 'desc') {
-        setSortColumn(null); // Reset sort
-        setSortDirection(null);
-      } else {
-        setSortDirection('asc');
-      }
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortColumn(column);
       setSortDirection('asc');
@@ -61,90 +64,37 @@ const ProjectOverview: React.FC<{ projects: CalculatedProject[] }> = ({ projects
   };
 
   const sortedProjects = React.useMemo(() => {
-    if (!sortColumn || !sortDirection) {
-      return projects;
-    }
+    if (!sortColumn || !sortDirection) return projects;
 
     return [...projects].sort((a, b) => {
-      let valA: any;
-      let valB: any;
-
+      let valA: any, valB: any;
       switch (sortColumn) {
-        case 'name':
-          valA = a.name;
-          valB = b.name;
-          break;
-        case 'teamSize':
-          valA = a.team.length;
-          valB = b.team.length;
-          break;
-        case 'totalConsumedHours':
-          valA = a.totalConsumedHours;
-          valB = b.totalConsumedHours;
-          break;
-        case 'progress':
-          valA = a.progress;
-          valB = b.progress;
-          break;
-        default:
-          return 0;
+        case 'name': valA = a.name; valB = b.name; break;
+        case 'teamSize': valA = a.team.length; valB = b.team.length; break;
+        case 'totalConsumedHours': valA = a.totalConsumedHours; valB = b.totalConsumedHours; break;
+        case 'progress': valA = a.progress; valB = b.progress; break;
+        default: return 0;
       }
-
-      if (typeof valA === 'string' && typeof valB === 'string') {
-        return sortDirection === 'asc'
-          ? valA.localeCompare(valB)
-          : valB.localeCompare(valA);
-      }
-      if (typeof valA === 'number' && typeof valB === 'number') {
-        return sortDirection === 'asc' ? valA - valB : valB - a;
-      }
+      if (typeof valA === 'string') return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      if (typeof valA === 'number') return sortDirection === 'asc' ? valA - valB : valB - valA;
       return 0;
     });
   }, [projects, sortColumn, sortDirection]);
-  
+
   return (
-    <>
-      <div className="space-y-2">
-        <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs text-text-secondary font-semibold uppercase tracking-wider border-b border-border">
-          <button 
-            className="col-span-4 flex items-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('name')}
-          >
-            Proyecto {getSortIcon('name')}
-          </button>
-          <button 
-            className="col-span-2 text-center flex items-center justify-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('teamSize')}
-          >
-            Equipo {getSortIcon('teamSize')}
-          </button>
-          <button 
-            className="col-span-2 text-center flex items-center justify-center gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('totalConsumedHours')}
-          >
-            Horas Consumidas {getSortIcon('totalConsumedHours')}
-          </button>
-          <button 
-            className="col-span-4 text-right pr-14 flex items-center justify-end gap-1 cursor-pointer group hover:text-text-primary transition-colors"
-            onClick={() => handleSort('progress')}
-          >
-            Progreso {getSortIcon('progress')}
-          </button>
-        </div>
-        <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
-          {sortedProjects.map(project => (
-            <ProjectRow key={project.id} project={project} onSelect={() => setSelectedProject(project)} />
-          ))}
-        </div>
+    <div className="space-y-2">
+      <div className="grid grid-cols-12 gap-4 px-3 py-3 text-xs text-text-secondary font-montserrat font-semibold uppercase tracking-wider border-b-2 border-border mb-4">
+        <button className="col-span-3 flex items-center gap-1 cursor-pointer group hover:text-text-primary transition-colors" onClick={() => handleSort('name')}>Proyecto {getSortIcon('name')}</button>
+        <button className="col-span-2 text-center flex items-center justify-center gap-1 cursor-pointer group hover:text-text-primary transition-colors" onClick={() => handleSort('teamSize')}>Equipo {getSortIcon('teamSize')}</button>
+        <button className="col-span-2 text-center flex items-center justify-center gap-1 cursor-pointer group hover:text-text-primary transition-colors" onClick={() => handleSort('totalConsumedHours')}>Horas Consumidas {getSortIcon('totalConsumedHours')}</button>
+        <button className="col-span-2 flex items-center gap-1 cursor-pointer group hover:text-text-primary transition-colors" onClick={() => handleSort('progress')}>Progreso {getSortIcon('progress')}</button>
+        <div className="col-span-3"></div>
       </div>
-      {selectedProject && (
-        <ProjectDetailModal 
-          project={selectedProject} 
-          onClose={() => setSelectedProject(null)} 
-        />
-      )}
-    </>
+      <div className="max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
+        {sortedProjects.map(project => (
+          <ProjectRow key={project.id} project={project} onSelect={onSelectProject} />
+        ))}
+      </div>
+    </div>
   );
 };
-
-export default ProjectOverview;

@@ -1,190 +1,271 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useDashboardData } from './hooks/useDashboardData';
+import { CalculatedEmployee, CalculatedProject, DashboardData, Employee, Project, Task } from './types';
 import EmployeeAvailability from './components/EmployeeAvailability';
-import ProjectOverview from './components/ProjectOverview';
+import { ProjectOverview } from './components/ProjectOverview';
 import AlertsDashboard from './components/AlertsDashboard';
-import { BriefcaseIcon, UsersIcon, SearchIcon } from './components/Icons';
-import { DashboardData, ProjectType, CalculatedEmployee, CalculatedProject } from './types';
+import EmployeeDetailModal from './components/EmployeeDetailModal';
+import ProjectDetailModal from './components/ProjectDetailModal';
+import AddEditEmployeeModal from './components/AddEditEmployeeModal';
+import AddEditProjectModal from './components/AddEditProjectModal';
+import AddEditTaskModal from './components/AddEditTaskModal';
+import ConfirmDeleteModal from './components/ConfirmDeleteModal';
+import EmployeePerformance from './components/EmployeePerformance';
+import EmployeeEvolution from './components/EmployeeEvolution';
+import { ChartBarIcon, TableIcon, UsersIcon, TrendingUpIcon } from './components/Icons';
+import AIInsights from './components/AIInsights';
 
-const App: React.FC = () => {
+type View = 'availability' | 'projects' | 'performance' | 'evolution';
+
+function App() {
   const { data: initialData, loading } = useDashboardData();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [activeTab, setActiveTab] = useState<'employees' | 'projects'>('employees');
-  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
-  const [projectSearchTerm, setProjectSearchTerm] = useState('');
+  const [dashboardData, setDashboardData] = useState<DashboardData>(initialData);
+  const [view, setView] = useState<View>('availability');
   
+  const [selectedEmployee, setSelectedEmployee] = useState<CalculatedEmployee | null>(null);
+  const [selectedProject, setSelectedProject] = useState<CalculatedProject | null>(null);
+
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingTaskInfo, setEditingTaskInfo] = useState<{task: Task, projectId: string} | null>(null);
+
+  const [deletingItem, setDeletingItem] = useState<{type: 'employee' | 'project' | 'task', data: any, context?: any} | null>(null);
+
+  const [slackMessage, setSlackMessage] = useState<{ employeeName: string; message: string; } | null>(null);
+
   useEffect(() => {
-    if(initialData) {
-        setDashboardData(initialData);
-    }
+    setDashboardData(initialData);
   }, [initialData]);
 
-  const handleUpdateEmployeeProjectHours = (employeeId: string, projectId: string, newAssignedHours: number) => {
-    setDashboardData(prevData => {
-      if (!prevData) return null;
+  const {
+    employeesWithoutHours,
+    projectsWithoutActivity,
+    employeesOverloaded,
+    employeesUnderutilized,
+    employeePerformanceData,
+  } = useMemo(() => {
+    const employees = dashboardData.employees;
+    const projects = dashboardData.projects;
 
-      const employeeMap: Map<string, CalculatedEmployee> = new Map(prevData.employees.map(e => [e.id, JSON.parse(JSON.stringify(e))]));
-      const projectMap: Map<string, CalculatedProject> = new Map(prevData.projects.map(p => [p.id, JSON.parse(JSON.stringify(p))]));
+    const employeesWithoutHours = employees.filter(e => !e.hasLoggedHoursThisWeek);
+    const projectsWithoutActivity = projects.filter(p => !p.hasActivityThisWeek);
+    const employeesOverloaded = employees.filter(e => e.hasLoggedHoursThisWeek && e.lastWeekDailyAverage > 8);
+    const employeesUnderutilized = employees.filter(e => e.hasLoggedHoursThisWeek && e.lastWeekDailyAverage < 6);
+    
+    const employeePerformanceData = employees.map(emp => {
+      const totalAssignedHours = emp.historicalData.reduce((sum, h) => sum + h.assignedHours, 0);
+      const totalConsumedHours = emp.historicalData.reduce((sum, h) => sum + h.consumedHours, 0);
+      const overallCompletionRate = totalAssignedHours > 0 ? Math.round((totalConsumedHours / totalAssignedHours) * 100) : 0;
+      return { ...emp, overallCompletionRate, totalAssignedHours, totalConsumedHours };
+    });
 
-      const employeeToUpdate = employeeMap.get(employeeId);
-      if (!employeeToUpdate) return prevData;
+    return {
+      employeesWithoutHours,
+      projectsWithoutActivity,
+      employeesOverloaded,
+      employeesUnderutilized,
+      employeePerformanceData,
+    };
+  }, [dashboardData]);
 
-      const projectAssignment = employeeToUpdate.projects.find(p => p.projectId === projectId);
-      if (!projectAssignment) return prevData;
-      
-      projectAssignment.assignedHours = newAssignedHours;
-      
-      const recurringHours = employeeToUpdate.projects
-        .filter(p => projectMap.get(p.projectId)?.type === ProjectType.RECURRING)
-        .reduce((sum, p) => sum + p.assignedHours, 0);
-      const oneTimeHours = employeeToUpdate.projects
-        .filter(p => projectMap.get(p.projectId)?.type === ProjectType.ONE_TIME)
-        .reduce((sum, p) => sum + p.assignedHours, 0);
-      
-      const totalAssigned = recurringHours + oneTimeHours;
-      employeeToUpdate.recurringHours = recurringHours;
-      employeeToUpdate.oneTimeHours = oneTimeHours;
-      employeeToUpdate.balanceHours = employeeToUpdate.totalHoursMonth - totalAssigned;
-      employeeToUpdate.occupancyRate = employeeToUpdate.totalHoursMonth > 0 ? Math.min(100, Math.round((totalAssigned / employeeToUpdate.totalHoursMonth) * 100)) : 0;
 
-      const updatedEmployees = Array.from(employeeMap.values());
+  // Handlers for Modals
+  const handleSelectEmployee = (employee: CalculatedEmployee) => setSelectedEmployee(employee);
+  const handleSelectProject = (project: CalculatedProject) => setSelectedProject(project);
+  const handleEditEmployee = (employee: Employee) => setEditingEmployee(employee);
+  const handleEditProject = (project: Project) => setEditingProject(project);
+  const handleEditTask = (projectId: string, task: Task) => setEditingTaskInfo({task, projectId});
+  const handleDeleteEmployee = (employee: Employee) => setDeletingItem({ type: 'employee', data: employee });
+  const handleDeleteProject = (project: Project) => setDeletingItem({ type: 'project', data: project });
+  const handleDeleteTask = (projectId: string, task: Task) => setDeletingItem({type: 'task', data: task, context: { projectId }});
 
-      const updatedProjects = Array.from(projectMap.values()).map(proj => {
-        const team = updatedEmployees.filter(emp => emp.projects.some(p => p.projectId === proj.id));
-        const totalAssignedHours = team.reduce((sum, emp) => {
-          const projectHours = emp.projects.find(p => p.projectId === proj.id)?.assignedHours || 0;
-          return sum + projectHours;
-        }, 0);
-        
-        const totalConsumedHours = team.reduce((sum, emp) => {
-          const projectHours = emp.projects.find(p => p.projectId === proj.id)?.consumedHours || 0;
-          return sum + projectHours;
-        }, 0);
-        
-        const progress = totalAssignedHours > 0 ? (totalConsumedHours / totalAssignedHours) * 100 : 0;
-        
-        return {
-            ...proj,
-            team,
-            totalAssignedHours,
-            totalConsumedHours,
-            progress: Math.min(100, Math.round(progress)),
-        };
+  const handleCloseModals = () => {
+    setSelectedEmployee(null);
+    setSelectedProject(null);
+    setEditingEmployee(null);
+    setEditingProject(null);
+    setEditingTaskInfo(null);
+    setDeletingItem(null);
+    setSlackMessage(null);
+  };
+
+  // Data mutation handlers
+  const handleSaveEmployee = (updatedEmployee: Employee) => {
+    setDashboardData(prev => ({
+        ...prev,
+        employees: prev.employees.map(e => e.id === updatedEmployee.id ? { ...e, ...updatedEmployee} : e)
+    }));
+    handleCloseModals();
+  };
+
+  const handleSaveProject = (updatedProject: Project) => {
+    setDashboardData(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => p.id === updatedProject.id ? { ...p, ...updatedProject } : p)
+    }));
+    handleCloseModals();
+  };
+  
+  const handleSaveTask = (projectId: string, updatedTask: Task) => {
+    setDashboardData(prev => ({
+        ...prev,
+        projects: prev.projects.map(p => {
+            if (p.id === projectId) {
+                return {
+                    ...p,
+                    tasks: p.tasks.map(t => t.id === updatedTask.id ? updatedTask : t)
+                }
+            }
+            return p;
+        })
+    }));
+    handleCloseModals();
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingItem) return;
+    const { type, data, context } = deletingItem;
+
+    if (type === 'employee') {
+      setDashboardData(prev => {
+        const newEmployees = prev.employees.filter(e => e.id !== data.id);
+        const newProjects = prev.projects.map(p => ({ ...p, team: p.team.filter(m => m.id !== data.id)}));
+        return { employees: newEmployees, projects: newProjects };
       });
+    } else if (type === 'project') {
+       setDashboardData(prev => {
+        const newProjects = prev.projects.filter(p => p.id !== data.id);
+        const newEmployees = prev.employees.map(e => ({...e, projects: e.projects.filter(p => p.projectId !== data.id)}));
+        return { employees: newEmployees, projects: newProjects };
+      });
+    } else if (type === 'task') {
+       setDashboardData(prev => ({
+            ...prev,
+            projects: prev.projects.map(p => {
+                if (p.id === context.projectId) {
+                    return { ...p, tasks: p.tasks.filter(t => t.id !== data.id) }
+                }
+                return p;
+            })
+        }));
+    }
+    handleCloseModals();
+  }
 
-      return { employees: updatedEmployees, projects: updatedProjects };
+  const handleUpdateProjectHours = (employeeId: string, projectId: string, newAssignedHours: number) => {
+    setDashboardData(prev => {
+      const newEmployees = prev.employees.map(e => {
+        if (e.id === employeeId) {
+          const newProjectsForEmp = e.projects.map(p => p.projectId === projectId ? {...p, assignedHours: newAssignedHours} : p);
+          const totalAssigned = newProjectsForEmp.reduce((sum, p) => sum + p.assignedHours, 0);
+          const balanceHours = e.totalHoursMonth - totalAssigned;
+          const occupancyRate = e.totalHoursMonth > 0 ? (totalAssigned / e.totalHoursMonth) * 100 : 0;
+          return {
+            ...e,
+            projects: newProjectsForEmp,
+            balanceHours,
+            occupancyRate: Math.round(occupancyRate),
+          }
+        }
+        return e;
+      });
+      return {...prev, employees: newEmployees};
     });
   };
 
-  if (loading || !dashboardData) {
+  const handleAssignEmployeeToProject = (projectId: string, employeeId: string, assignedHours: number) => {
+    console.log(`Assigning ${employeeId} to ${projectId} for ${assignedHours}h`);
+    alert("La asignación de empleados está deshabilitada en esta demostración.");
+  }
+  
+  const handleSendSlackMessage = (employeeName: string) => {
+    const employee = dashboardData.employees.find(e => e.name === employeeName);
+    if (!employee) return;
+    
+    const workloadStatus = employee.lastWeekDailyAverage > 8 ? 'altas' : (employee.lastWeekDailyAverage < 6 ? 'bajas' : 'normales');
+    const message = `Hola ${employeeName}, he visto que tu media de horas esta semana es de ${employee.lastWeekDailyAverage.toFixed(1)}h/día, lo cual es un poco ${workloadStatus}. ¿Cómo va todo? ¿Necesitas ayuda con algo?`;
+    
+    setSlackMessage({ employeeName, message });
+  };
+
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg text-text-secondary">Cargando Dashboard...</p>
-      </div>
+        <div className="flex items-center justify-center min-h-screen bg-background">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
+        </div>
     );
   }
 
-  const OVERLOAD_THRESHOLD = 8;
-  const UNDERUTILIZED_THRESHOLD = 6;
+  const renderView = () => {
+    switch (view) {
+      case 'availability':
+        return <EmployeeAvailability employees={dashboardData.employees} onSelectEmployee={handleSelectEmployee} onSendSlackMessage={handleSendSlackMessage} />;
+      case 'projects':
+        return <ProjectOverview projects={dashboardData.projects} onSelectProject={handleSelectProject} />;
+      case 'performance':
+        return <EmployeePerformance data={employeePerformanceData} onSelectEmployee={handleSelectEmployee} />;
+      case 'evolution':
+        return <EmployeeEvolution employees={dashboardData.employees} onSelectEmployee={handleSelectEmployee} />;
+      default:
+        return null;
+    }
+  };
 
-  const employeesWithoutHours = dashboardData.employees.filter(e => !e.hasLoggedHoursThisWeek);
-  const projectsWithoutActivity = dashboardData.projects.filter(p => !p.hasActivityThisWeek);
-  const employeesOverloaded = dashboardData.employees.filter(e => e.lastWeekDailyAverage > OVERLOAD_THRESHOLD);
-  const employeesUnderutilized = dashboardData.employees.filter(e => e.hasLoggedHoursThisWeek && e.lastWeekDailyAverage < UNDERUTILIZED_THRESHOLD);
-
-  const hasAlerts = employeesWithoutHours.length > 0 || projectsWithoutActivity.length > 0 || employeesOverloaded.length > 0 || employeesUnderutilized.length > 0;
-
-  const filteredEmployees = dashboardData.employees.filter(employee =>
-    employee.name.toLowerCase().includes(employeeSearchTerm.toLowerCase())
-  );
-
-  const filteredProjects = dashboardData.projects.filter(project =>
-    project.name.toLowerCase().includes(projectSearchTerm.toLowerCase())
+  const ViewButton = ({ viewName, label, icon: Icon }: { viewName: View, label: string, icon: React.FC<any> }) => (
+    <button
+      onClick={() => setView(viewName)}
+      className={`flex items-center gap-3 px-4 py-2 rounded-lg font-montserrat font-semibold text-sm transition-all duration-200
+        ${view === viewName ? 'bg-gradient-primary text-white shadow-custom-medium' : 'bg-surface text-text-primary hover:bg-neutral-100'}`}
+    >
+        <Icon className="w-5 h-5" />
+        {label}
+    </button>
   );
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <main className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-text-primary">Dashboard de Equipo</h1>
-          <p className="text-text-secondary mt-1">Monitorea la carga de trabajo, el progreso de los proyectos y las alertas.</p>
-        </header>
+    <div className="bg-background min-h-screen text-text-primary p-4 lg:p-8 font-sans">
+      <main className="max-w-[95%] mx-auto space-y-6">
+        <h1 className="text-4xl font-montserrat font-extrabold text-text-primary tracking-tight">Dashboard de Recursos</h1>
+        
+        <AlertsDashboard 
+          employeesWithoutHours={employeesWithoutHours}
+          projectsWithoutActivity={projectsWithoutActivity}
+          employeesOverloaded={employeesOverloaded}
+          employeesUnderutilized={employeesUnderutilized}
+        />
 
-        {hasAlerts && (
-          <div className="mb-8">
-            <AlertsDashboard
-              employeesWithoutHours={employeesWithoutHours}
-              projectsWithoutActivity={projectsWithoutActivity}
-              employeesOverloaded={employeesOverloaded}
-              employeesUnderutilized={employeesUnderutilized}
-            />
+        <div className="bg-surface border border-border rounded-xl p-6 shadow-custom-medium">
+          <div className="flex flex-wrap items-center gap-4 mb-6 border-b border-border pb-6">
+            <ViewButton viewName="availability" label="Disponibilidad de Equipo" icon={UsersIcon} />
+            <ViewButton viewName="projects" label="Vista de Proyectos" icon={TableIcon} />
+            <ViewButton viewName="performance" label="Rendimiento del Equipo" icon={ChartBarIcon}/>
+            <ViewButton viewName="evolution" label="Evolución del Equipo" icon={TrendingUpIcon} />
           </div>
-        )}
-
-        <div className="flex border-b border-border">
-          <button 
-            onClick={() => setActiveTab('employees')}
-            className={`flex items-center gap-2 px-3 py-2.5 text-sm font-semibold transition-colors focus:outline-none ${activeTab === 'employees' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary hover:text-text-primary'}`}
-          >
-            <UsersIcon className="w-5 h-5" />
-            Empleados
-          </button>
-          <button 
-            onClick={() => setActiveTab('projects')}
-            className={`flex items-center gap-2 px-3 py-2.5 text-sm font-semibold transition-colors focus:outline-none ${activeTab === 'projects' ? 'border-b-2 border-primary text-primary' : 'text-text-secondary hover:text-text-primary'}`}
-          >
-            <BriefcaseIcon className="w-5 h-5" />
-            Proyectos
-          </button>
+          {renderView()}
         </div>
 
-        <div className="mt-6">
-          <div className="mb-4">
-            {activeTab === 'employees' && (
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <SearchIcon className="w-5 h-5 text-text-secondary" />
-                </span>
-                <input
-                    type="text"
-                    placeholder="Buscar empleado..."
-                    value={employeeSearchTerm}
-                    onChange={(e) => setEmployeeSearchTerm(e.target.value)}
-                    className="w-full max-w-xs pl-10 pr-4 py-2 border border-border rounded-lg bg-surface focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                />
-              </div>
-            )}
-            {activeTab === 'projects' && (
-                <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                        <SearchIcon className="w-5 h-5 text-text-secondary" />
-                    </span>
-                    <input
-                        type="text"
-                        placeholder="Buscar proyecto..."
-                        value={projectSearchTerm}
-                        onChange={(e) => setProjectSearchTerm(e.target.value)}
-                        className="w-full max-w-xs pl-10 pr-4 py-2 border border-border rounded-lg bg-surface focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    />
-                </div>
-            )}
-          </div>
-          <div className="bg-surface p-4 sm:p-6 rounded-xl border border-border shadow-sm">
-              {activeTab === 'employees' && (
-                <EmployeeAvailability 
-                    employees={filteredEmployees} 
-                    projects={dashboardData.projects}
-                    onUpdateEmployeeProjectHours={handleUpdateEmployeeProjectHours}
-                />
-              )}
-              {activeTab === 'projects' && (
-                <ProjectOverview projects={filteredProjects} />
-              )}
-          </div>
-        </div>
+        <AIInsights dashboardData={dashboardData} />
       </main>
+
+      {selectedEmployee && <EmployeeDetailModal employee={selectedEmployee} projects={dashboardData.projects} onClose={handleCloseModals} onUpdateProjectHours={handleUpdateProjectHours} onEditEmployee={handleEditEmployee} onDeleteEmployee={handleDeleteEmployee} />}
+      {selectedProject && <ProjectDetailModal project={selectedProject} onClose={handleCloseModals} onEditProject={handleEditProject} onAssignEmployeeToProject={handleAssignEmployeeToProject} onEditTask={handleEditTask} onDeleteProject={handleDeleteProject} onDeleteTask={handleDeleteTask} allEmployees={dashboardData.employees} />}
+      {editingEmployee && <AddEditEmployeeModal employee={editingEmployee} onClose={handleCloseModals} onSave={handleSaveEmployee} />}
+      {editingProject && <AddEditProjectModal project={editingProject} onClose={handleCloseModals} onSave={handleSaveProject} />}
+      {editingTaskInfo && <AddEditTaskModal task={editingTaskInfo.task} projectId={editingTaskInfo.projectId} allEmployees={dashboardData.employees} onClose={handleCloseModals} onSave={handleSaveTask} />}
+      {deletingItem && <ConfirmDeleteModal onClose={handleCloseModals} onConfirm={handleConfirmDelete} title={`Confirmar eliminación de ${deletingItem.type}`} message={`¿Estás seguro de que quieres eliminar este ${deletingItem.type}? Esta acción no se puede deshacer.`} />}
+      {slackMessage && (
+        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={handleCloseModals}>
+            <div className="bg-surface border border-border rounded-3xl shadow-custom-strong w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                <h3 className="font-montserrat font-bold text-lg">Sugerencia de mensaje para {slackMessage.employeeName}</h3>
+                <p className="bg-background p-4 rounded-lg my-4 whitespace-pre-wrap text-sm font-open-sans">{slackMessage.message}</p>
+                <button onClick={handleCloseModals} className="w-full px-5 py-2 rounded-lg bg-gradient-primary text-white shadow-custom-medium hover:bg-gradient-primary-hover transition-all duration-300 font-montserrat font-semibold">Cerrar</button>
+            </div>
+        </div>
+      )}
+
     </div>
   );
-};
+}
 
 export default App;

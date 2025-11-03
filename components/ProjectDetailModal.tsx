@@ -1,175 +1,162 @@
-import React from 'react';
-import { CalculatedProject, Employee, ProjectStatus, TaskStatus, HistoricalData } from '../types';
-import { CalendarIcon, CheckSquareIcon, UsersIcon, XIcon } from './Icons';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, ReferenceLine, Cell } from 'recharts';
+import React, { useState, useEffect, useRef } from 'react';
+import { CalculatedProject, Project, Task, CalculatedEmployee, ProjectStatus } from '../types';
+import { XIcon, EditIcon, TrashIcon, CalendarIcon, CheckSquareIcon } from './Icons';
+import { gsap } from 'gsap';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 
-const StatusBadge: React.FC<{ status: ProjectStatus }> = ({ status }) => {
-  const styles = {
-    [ProjectStatus.ON_TRACK]: 'bg-green-100 text-green-800',
-    [ProjectStatus.AT_RISK]: 'bg-yellow-100 text-yellow-800',
-    [ProjectStatus.OFF_TRACK]: 'bg-red-100 text-red-800',
-    [ProjectStatus.COMPLETED]: 'bg-blue-100 text-blue-800',
+interface ProjectDetailModalProps {
+  project: CalculatedProject;
+  onClose: () => void;
+  onEditProject: (project: Project) => void;
+  onAssignEmployeeToProject: (projectId: string, employeeId: string, assignedHours: number) => void;
+  onEditTask: (projectId: string, task: Task) => void;
+  onDeleteProject: (project: Project) => void;
+  onDeleteTask: (projectId: string, task: Task) => void;
+  allEmployees: CalculatedEmployee[];
+}
+
+const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ project, onClose, onEditProject, onAssignEmployeeToProject, onEditTask, onDeleteProject, onDeleteTask, allEmployees }) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const [assigningEmployee, setAssigningEmployee] = useState<{ id: string, hours: string }>({ id: '', hours: '20' });
+
+  useEffect(() => {
+    gsap.fromTo(modalRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'power2.out' });
+    gsap.fromTo(contentRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: 'power2.out', delay: 0.1 });
+  }, []);
+
+  const handleClose = () => {
+    gsap.to(contentRef.current, { y: 20, opacity: 0, duration: 0.2, ease: 'power2.in' });
+    gsap.to(modalRef.current, { opacity: 0, duration: 0.2, ease: 'power2.in', onComplete: onClose });
   };
-  return <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${styles[status]}`}>{status}</span>;
-};
-
-const TaskStatusBadge: React.FC<{ status: TaskStatus }> = ({ status }) => {
-    const styles = {
-      [TaskStatus.TO_DO]: 'bg-slate-200 text-slate-700',
-      [TaskStatus.IN_PROGRESS]: 'bg-sky-100 text-sky-800',
-      [TaskStatus.COMPLETED]: 'bg-green-100 text-green-800',
-    };
-    return <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${styles[status]}`}>{status}</span>;
-  };
-
-// Helper function to calculate balance and determine color
-const getBalanceData = (historicalData: HistoricalData[]) => {
-    return historicalData.map(d => {
-      const balance = d.consumedHours - d.assignedHours;
-      let color = '';
-      let status = '';
-      let description = '';
   
-      if (balance > 5) { 
-        color = '#EF4444'; 
-        status = 'Horas Adicionales'; 
-        description = 'Se consumieron más horas de las asignadas (superó el objetivo).';
-      } // Red-500
-      else if (balance >= -5) { 
-        color = '#34D399'; 
-        status = 'Meta Cumplida'; 
-        description = 'Las horas consumidas están muy cerca de las asignadas (cumplió el objetivo).';
-      } // Green-400
-      else { 
-        color = '#60A5FA'; 
-        status = 'Horas Pendientes'; 
-        description = 'Se consumieron menos horas de las asignadas (quedaron horas pendientes).';
-      } // Blue-400
+  const handleAssign = () => {
+    if (assigningEmployee.id && assigningEmployee.hours) {
+      onAssignEmployeeToProject(project.id, assigningEmployee.id, parseInt(assigningEmployee.hours, 10));
+      setAssigningEmployee({ id: '', hours: '20' });
+    }
+  }
+
+  const getStatusColor = (status: ProjectStatus) => {
+    switch (status) {
+        case ProjectStatus.ON_TRACK: return 'bg-green-100 text-green-800';
+        case ProjectStatus.AT_RISK: return 'bg-yellow-100 text-yellow-800';
+        case ProjectStatus.OFF_TRACK: return 'bg-red-100 text-red-800';
+        case ProjectStatus.COMPLETED: return 'bg-blue-100 text-blue-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
+  };
   
-      return { ...d, balance, color, status, description };
-    });
+  const chartData = project.historicalData.map(d => ({
+    month: d.month,
+    Balance: d.consumedHours - d.assignedHours,
+  }));
+
+  const getBarColor = (value: number) => {
+      if (value > 5) return '#3B82F6'; // Superado (Azul)
+      if (value >= -5) return '#22C55E'; // Meta Cumplida (Verde)
+      return '#F97316'; // Horas Pendientes (Naranja)
   };
 
-  // Custom Tooltip for the balance chart
-  const CustomBalanceTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload; // Get the full data object for the month
-      return (
-        <div className="bg-surface border border-border rounded-lg p-3 text-sm shadow-md">
-          <p className="font-semibold text-text-primary">{label}</p>
-          <p className="text-text-secondary mt-1">Estado: {data.status}</p>
-          <p className="text-text-secondary">{data.description}</p>
-          <p className={`font-mono ${data.balance > 0 ? 'text-red-500' : (data.balance < 0 ? 'text-blue-500' : 'text-green-500')}`}>
-              Balance: {data.balance > 0 ? '+' : ''}{data.balance}h
-          </p>
-          <p className="text-text-secondary">Asignadas: {data.assignedHours}h</p>
-          <p className="text-text-secondary">Consumidas: {data.consumedHours}h</p>
-        </div>
-      );
-    }
-    return null;
-  };
 
-const ProjectDetailModal: React.FC<{ project: CalculatedProject; onClose: () => void }> = ({ project, onClose }) => {
-    
-    const getEmployeeById = (id: string): Employee | undefined => {
-        return project.team.find(e => e.id === id);
-    }
-
-    const chartDataWithBalance = getBalanceData(project.historicalData);
+  const availableEmployees = allEmployees.filter(e => !project.team.some(teamMember => teamMember.id === e.id));
 
   return (
-    <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-        onClick={onClose}
+    <div
+      ref={modalRef}
+      className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={handleClose}
     >
-      <div 
-        className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col"
-        onClick={e => e.stopPropagation()}
+      <div
+        ref={contentRef}
+        className="bg-surface border border-border rounded-3xl shadow-custom-strong w-full max-w-5xl max-h-[95vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-modal-title"
       >
-        <header className="flex items-start justify-between p-6 border-b border-border flex-shrink-0">
+        <header className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-text-primary">{project.name}</h2>
-            <p className="text-text-secondary text-sm mt-1">{project.description}</p>
+            <h2 id="project-modal-title" className="text-2xl font-montserrat font-bold text-text-primary">
+              {project.name}
+            </h2>
+            <p className="text-text-secondary font-open-sans">{project.description}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-background transition-colors">
-            <XIcon className="w-6 h-6 text-text-secondary" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onEditProject(project)} className="p-2 rounded-full hover:bg-background transition-colors" aria-label="Editar proyecto">
+              <EditIcon className="w-5 h-5 text-text-secondary" />
+            </button>
+            <button onClick={() => onDeleteProject(project)} className="p-2 rounded-full hover:bg-background transition-colors" aria-label="Eliminar proyecto">
+              <TrashIcon className="w-5 h-5 text-red-500" />
+            </button>
+            <button onClick={handleClose} className="p-2 rounded-full hover:bg-background transition-colors" aria-label="Cerrar modal">
+              <XIcon className="w-6 h-6 text-text-secondary" />
+            </button>
+          </div>
         </header>
 
-        <main className="p-6 overflow-y-auto space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                <div className="bg-background p-4 rounded-lg">
-                    <h4 className="text-sm font-semibold text-text-secondary mb-2">Estado</h4>
-                    <StatusBadge status={project.status} />
-                </div>
-                <div className="bg-background p-4 rounded-lg">
-                    <h4 className="text-sm font-semibold text-text-secondary mb-2">Fecha Límite</h4>
-                    <p className="text-text-primary font-semibold flex items-center justify-center gap-2">
-                        <CalendarIcon className="w-4 h-4" />
-                        {new Date(project.deadline).toLocaleDateString()}
-                    </p>
-                </div>
-                <div className="bg-background p-4 rounded-lg">
-                    <h4 className="text-sm font-semibold text-text-secondary mb-2">Equipo</h4>
-                    <p className="text-text-primary font-semibold flex items-center justify-center gap-2">
-                        <UsersIcon className="w-4 h-4" />
-                        {project.team.length} Miembros
-                    </p>
-                </div>
+        <div className="p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-3 space-y-4">
+            <h3 className="text-lg font-montserrat font-bold text-text-primary">Historial Mensual de Balance</h3>
+            <div className="h-64 w-full bg-background p-4 rounded-xl border border-border">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                        <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#737373' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 12, fill: '#737373' }} axisLine={false} tickLine={false} allowDecimals={false} unit="h" />
+                        <Tooltip
+                            cursor={{ fill: 'rgba(229, 229, 229, 0.2)' }}
+                            contentStyle={{
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                border: '1px solid #E5E5E5',
+                                borderRadius: '0.75rem',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                                fontFamily: "'Open Sans', sans-serif"
+                            }}
+                        />
+                        <Bar dataKey="Balance" name="Balance de Horas">
+                            {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={getBarColor(entry.Balance)} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          </div>
+          <div className="lg:col-span-2 space-y-6">
+             <div className="bg-background p-4 rounded-xl border border-border space-y-3">
+                 <div className="flex items-center gap-2 text-sm">
+                    <CheckSquareIcon className="w-5 h-5 text-primary" />
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold ${getStatusColor(project.status)}`}>{project.status}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                    <CalendarIcon className="w-5 h-5 text-primary" />
+                    <span>Vence: {new Date(project.deadline).toLocaleDateString()}</span>
+                </div>
                 <div>
-                    <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
-                        <CheckSquareIcon className="w-5 h-5 text-primary" />
-                        Desglose de Tareas
-                    </h3>
-                    <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 border-t border-border pt-4">
-                        {project.tasks.map(task => {
-                            const assignee = getEmployeeById(task.assignedTo);
-                            return (
-                                <div key={task.id} className="bg-background p-3 rounded-lg flex items-center justify-between">
-                                    <div>
-                                        <p className="text-text-primary text-sm">{task.name}</p>
-                                        <div className="flex items-center mt-1">
-                                            <span className="text-xs text-text-secondary">{assignee?.name || 'Sin asignar'}</span>
-                                        </div>
-                                    </div>
-                                    <TaskStatusBadge status={task.status} />
-                                </div>
-                            );
-                        })}
+                    <h4 className="font-semibold text-text-primary mb-1">Progreso</h4>
+                    <div className="w-full bg-neutral-200 rounded-full h-2.5">
+                        <div className="bg-primary h-2.5 rounded-full" style={{width: `${project.progress}%`}}></div>
                     </div>
+                    <p className="text-right text-sm font-bold text-primary mt-1">{project.progress}%</p>
                 </div>
-                 <div>
-                    <h3 className="text-lg font-bold text-text-primary mb-4">Historial Mensual de Balance</h3>
-                    <div className="h-[300px] border-t border-border pt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartDataWithBalance} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="month" tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fill: '#64748B', fontSize: 12 }} axisLine={false} tickLine={false} />
-                                <Tooltip cursor={{fill: 'rgba(100, 116, 139, 0.05)'}} content={CustomBalanceTooltip} />
-                                <ReferenceLine y={0} stroke="#64748B" strokeDasharray="3 3" />
-                                <Bar dataKey="balance" name="Balance de Horas">
-                                    {
-                                        chartDataWithBalance.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))
-                                    }
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-text-secondary mt-4 justify-center">
-                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500"></span> Horas Adicionales</div>
-                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400"></span> Meta Cumplida</div>
-                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400"></span> Horas Pendientes</div>
+             </div>
+             
+             <div>
+                <h3 className="text-lg font-montserrat font-bold text-text-primary mb-2">Equipo ({project.team.length})</h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                    {project.team.map(member => (
+                        <div key={member.id} className="flex items-center gap-3 p-2 bg-background rounded-md border">
+                            <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full" />
+                            <div>
+                                <p className="font-semibold text-sm">{member.name}</p>
+                            </div>
                         </div>
-                    </div>
+                    ))}
                 </div>
-            </div>
-        </main>
+             </div>
+          </div>
+        </div>
       </div>
     </div>
   );

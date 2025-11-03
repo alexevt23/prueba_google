@@ -1,6 +1,6 @@
 import React from 'react';
 import { CalculatedEmployee, CalculatedProject, ProjectType } from '../types';
-import { UsersIcon, BriefcaseIcon, AlertTriangleIcon, ClockIcon, TrendingUpIcon, TrendingDownIcon } from './Icons';
+import { UsersIcon, BriefcaseIcon, TrendingUpIcon, TrendingDownIcon } from './Icons';
 
 interface AlertsDashboardProps {
     employeesWithoutHours: CalculatedEmployee[];
@@ -10,15 +10,15 @@ interface AlertsDashboardProps {
 }
 
 const EmployeeAlertCard: React.FC<{ employee: CalculatedEmployee }> = ({ employee }) => (
-    <div className="bg-surface p-3 rounded-lg border border-border flex items-center">
-        <p className="font-semibold text-sm text-text-primary">{employee.name}</p>
+    <div className="bg-surface p-3 rounded-lg border border-border flex items-center shadow-custom-light hover:shadow-custom-medium transition-shadow duration-200">
+        <p className="font-montserrat font-semibold text-sm text-text-primary">{employee.name}</p>
     </div>
 );
 
 const ProjectAlertCard: React.FC<{ project: CalculatedProject }> = ({ project }) => (
-    <div className="bg-surface p-3 rounded-lg border border-border">
-        <p className="font-semibold text-sm text-text-primary truncate">{project.name}</p>
-        <span className={`mt-2 text-xs px-2 py-0.5 rounded-full self-start inline-block ${project.type === ProjectType.RECURRING ? 'bg-sky-100 text-sky-800' : 'bg-indigo-100 text-indigo-800'}`}>
+    <div className="bg-surface p-3 rounded-lg border border-border shadow-custom-light hover:shadow-custom-medium transition-shadow duration-200">
+        <p className="font-montserrat font-semibold text-sm text-text-primary truncate">{project.name}</p>
+        <span className={`mt-2 text-xs px-2 py-0.5 rounded-full shadow-sm self-start inline-block font-open-sans ${project.type === ProjectType.RECURRING ? 'bg-blue-50 text-blue-800' : 'bg-indigo-50 text-indigo-800'}`}> {/* Updated color classes */}
             {project.type}
         </span>
     </div>
@@ -27,16 +27,16 @@ const ProjectAlertCard: React.FC<{ project: CalculatedProject }> = ({ project })
 const WorkloadAlertCard: React.FC<{ employee: CalculatedEmployee; type: 'over' | 'under' }> = ({ employee, type }) => {
     const isOver = type === 'over';
     return (
-        <div className="bg-surface p-3 rounded-lg border border-border flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isOver ? 'bg-red-100' : 'bg-yellow-100'}`}>
+        <div className="bg-surface p-3 rounded-lg border border-border flex items-center gap-3 shadow-custom-light hover:shadow-custom-medium transition-shadow duration-200">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isOver ? 'bg-red-100' : 'bg-yellow-100'}`}>
                 {isOver ? <TrendingUpIcon className="w-5 h-5 text-red-600" /> : <TrendingDownIcon className="w-5 h-5 text-yellow-600" />}
             </div>
             <div className="flex-grow">
-                <p className="font-semibold text-text-primary text-sm">{employee.name}</p>
+                <p className="font-montserrat font-semibold text-text-primary text-sm">{employee.name}</p>
             </div>
             <div className="text-right">
-                <p className={`font-mono font-bold text-base ${isOver ? 'text-red-500' : 'text-yellow-500'}`}>{employee.lastWeekDailyAverage.toFixed(1)}h</p>
-                <p className="text-xs text-text-secondary">prom./día</p>
+                <p className={`font-open-sans font-bold text-base font-montserrat ${isOver ? 'text-red-500' : 'text-yellow-500'}`}>{employee.lastWeekDailyAverage.toFixed(1)}h</p> {/* font-mono removed */}
+                <p className="text-xs text-text-secondary font-open-sans">prom./día</p>
             </div>
         </div>
     );
@@ -80,26 +80,26 @@ const AlertsDashboard: React.FC<AlertsDashboardProps> = ({
     ];
     
     return (
-        <div className="bg-red-50/50 border-l-4 border-red-400 p-4 rounded-r-lg shadow-sm">
+        <div className="bg-red-50 border-l-4 border-red-400 p-6 rounded-xl shadow-custom-medium"> {/* Updated bg and border */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {inactivityAlerts.map(({ title, icon: Icon, items, render }) => (
-                    <div key={title} className="bg-surface/50 rounded-lg p-4">
-                        <h3 className="font-bold text-text-primary flex items-center gap-2 mb-3">
-                            <Icon className="w-5 h-5 text-text-secondary" />
+                    <div key={title} className="bg-surface rounded-xl p-4 border border-border"> {/* Updated bg */}
+                        <h3 className="font-montserrat font-bold text-text-primary flex items-center gap-3 mb-4">
+                            <Icon className="w-6 h-6 text-text-secondary" />
                             {title}
                         </h3>
-                        <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+                        <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2">
                             {items.map(render)}
                         </div>
                     </div>
                 ))}
                 {workloadAlerts.map(({ title, icon: Icon, items, render }) => (
-                     <div key={title} className="bg-surface/50 rounded-lg p-4">
-                        <h3 className="font-bold text-text-primary flex items-center gap-2 mb-3">
-                           <Icon className="w-5 h-5 text-text-secondary" />
-                           <span className="text-sm">{title}</span>
+                     <div key={title} className="bg-surface rounded-xl p-4 border border-border"> {/* Updated bg */}
+                        <h3 className="font-montserrat font-bold text-text-primary flex items-center gap-3 mb-4">
+                           <Icon className="w-6 h-6 text-text-secondary" />
+                           <span className="text-base">{title}</span>
                         </h3>
-                        <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+                        <div className="space-y-3 max-h-[150px] overflow-y-auto pr-2">
                             {items.map(render)}
                         </div>
                     </div>

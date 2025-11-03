@@ -6,11 +6,14 @@
     <title>Employee & Project Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Open Sans', sans-serif;
+      }
+      h1, h2, h3, h4, h5, h6 {
+        font-family: 'Montserrat', sans-serif;
       }
       /* For custom scrollbars */
       ::-webkit-scrollbar {
@@ -18,32 +21,46 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #F7F9FC; /* custom background color */
+        background: #FAFAFA; /* new background color */
       }
       ::-webkit-scrollbar-thumb {
-        background: #CBD5E1; /* slate-300 */
+        background: #D4D4D4; /* neutral-300 */
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94A3B8; /* slate-400 */
+        background: #A3A3A3; /* neutral-400 */
       }
     </style>
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Open Sans', 'sans-serif'],
+              montserrat: ['Montserrat', 'sans-serif'],
+              'open-sans': ['Open Sans', 'sans-serif'], // Explicitly define for consistency
+            },
             colors: {
-              background: '#F7F9FC',
+              background: '#FAFAFA', // neutral-50
               surface: '#FFFFFF',
               primary: {
-                DEFAULT: '#4338CA', // indigo-700
-                hover: '#3730A3',  // indigo-800
-                light: '#E0E7FF' // indigo-100
+                DEFAULT: '#1D4ED8', // blue-700
+                hover: '#1E40AF',  // blue-800
+                light: '#EFF6FF' // blue-50
               },
-              'text-primary': '#1E293B', // slate-800
-              'text-secondary': '#64748B', // slate-500
-              border: '#E2E8F0' // slate-200
-            }
+              'text-primary': '#171717', // neutral-900
+              'text-secondary': '#737373', // neutral-500
+              border: '#E5E5E5' // neutral-200
+            },
+            boxShadow: {
+              'custom-light': '0 4px 12px rgba(0, 0, 0, 0.08)',
+              'custom-medium': '0 8px 24px rgba(0, 0, 0, 0.12)',
+              'custom-strong': '0 12px 40px rgba(0, 0, 0, 0.18)',
+            },
+            backgroundImage: {
+              'gradient-primary': 'linear-gradient(to right, #2563EB, #3B82F6)', // blue-600 to blue-500
+              'gradient-primary-hover': 'linear-gradient(to right, #1D4ED8, #2563EB)', // blue-700 to blue-600
+            },
           }
         }
       }
@@ -54,7 +71,10 @@
     "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "uuid": "https://aistudiocdn.com/uuid@^9.0.1",
+    "gsap": "https://aistudiocdn.com/gsap@^3.12.5",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0"
   }
 }
 </script>
