@@ -11,9 +11,10 @@ import AddEditProjectModal from './components/AddEditProjectModal';
 import AddEditTaskModal from './components/AddEditTaskModal';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import EmployeeEvolution from './components/EmployeeEvolution';
-import { TableIcon, UsersIcon, TrendingUpIcon } from './components/Icons';
+import ProjectEvolution from './components/ProjectEvolution';
+import { TableIcon, UsersIcon, TrendingUpIcon, BriefcaseIcon } from './components/Icons';
 
-type View = 'availability' | 'projects' | 'evolution';
+type View = 'availability' | 'projects' | 'evolution' | 'project-evolution';
 
 function App() {
   const { data: initialData, loading } = useDashboardData();
@@ -194,6 +195,8 @@ function App() {
         return <ProjectOverview projects={dashboardData.projects} onSelectProject={handleSelectProject} />;
       case 'evolution':
         return <EmployeeEvolution employees={dashboardData.employees} onSelectEmployee={handleSelectEmployee} />;
+      case 'project-evolution':
+        return <ProjectEvolution projects={dashboardData.projects} employees={dashboardData.employees} onSelectProject={handleSelectProject} />;
       default:
         return null;
     }
@@ -227,6 +230,7 @@ function App() {
             <ViewButton viewName="availability" label="Disponibilidad de Equipo" icon={UsersIcon} />
             <ViewButton viewName="projects" label="Vista de Proyectos" icon={TableIcon} />
             <ViewButton viewName="evolution" label="Evolución del Equipo" icon={TrendingUpIcon} />
+            <ViewButton viewName="project-evolution" label="Evolución de Proyectos" icon={BriefcaseIcon} />
           </div>
           {renderView()}
         </div>

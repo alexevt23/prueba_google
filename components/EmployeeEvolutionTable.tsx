@@ -55,7 +55,7 @@ const ExpandedRowContent: React.FC<{ employee: CalculatedEmployee }> = ({ employ
                                 <th className="px-4 py-2 text-right">Asignadas</th>
                                 <th className="px-4 py-2 text-right">Consumidas</th>
                                 <th className="px-4 py-2 text-right">Balance</th>
-                                <th className="px-4 py-2 text-right">Finalización</th>
+                                <th className="px-4 py-2 text-right">%</th>
                             </tr>
                         </thead>
                         <tbody className="font-open-sans">
@@ -105,7 +105,7 @@ const ExpandedRowContent: React.FC<{ employee: CalculatedEmployee }> = ({ employ
                     </div>
                 </div>
                 <div className="min-h-[200px]">
-                    <h4 className="font-montserrat font-bold text-text-primary mb-2">Evolucion de Horas asig/consum</h4>
+                    <h4 className="font-montserrat font-bold text-text-primary mb-2">Evolución de Finalización</h4>
                      <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
                             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#737373' }} axisLine={false} tickLine={false} />
@@ -213,7 +213,7 @@ const EmployeeEvolutionTable: React.FC<EmployeeEvolutionTableProps> = ({ employe
             <div className="col-span-2 text-center">Finalización Media</div>
             <div className="col-span-2 text-center">Fichaje Medio</div>
             <div className="col-span-2 text-center">Ocupación Actual</div>
-            <div className="col-span-2 text-center">Horas No Consumidas (Media)</div>
+            <div className="col-span-2 text-center whitespace-nowrap">Horas No Consumidas (Media)</div>
         </div>
         {/* Body */}
         <div className="divide-y divide-border">
